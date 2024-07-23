@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ru">
 	<head>
-		<meta charset="utf-8">
+		<meta charset="utf-8" />
 		<title>Login</title>
 		<style>
 			body {
@@ -12,19 +12,22 @@
 				display: flex;
 				flex-direction: column;
 				justify-content: center;
-                align-items: center;
+				align-items: center;
 			}
 			form {
 				display: flex;
 				flex-direction: column;
-				color: white
+				gap: 1rem;
+				color: white;
 			}
 		</style>
 	</head>
 	<body>
-		<form method="POST">
+		<form method="POST" action="/login">
+			<input type="hidden" name="name" value="localization" />
 			<label for="password">Пароль</label>
-			<input id="password" type="password" name="password">
+			<input id="password" type="password" name="password" />
+			<button type="submit">Войти</button>
 		</form>
 	</body>
 </html>

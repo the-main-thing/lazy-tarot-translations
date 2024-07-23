@@ -32,7 +32,7 @@ class TranslationRecord {
 		if (existingTranslationString) {
 			try {
 				const { description, translations } = JSON.parse(
-					existingTranslationString,
+					existingTranslationString
 				)
 				this.description = description
 				this.translations = translations
@@ -42,14 +42,14 @@ class TranslationRecord {
 		}
 
 		this.description = ''
-		this.translations = LANGUAGES.map((lang) => ({ lang, message: '' }))
+		this.translations = LANGUAGES.map(lang => ({ lang, message: '' }))
 	}
 }
 
 const findAndReplaceOrPush = <T>(
 	array: Array<T>,
 	predicate: (item: T) => boolean,
-	replacement: (current: T | undefined) => T,
+	replacement: (current: T | undefined) => T
 ) => {
 	for (let i = 0; i < array.length; i++) {
 		if (predicate(array[i]!)) {
@@ -79,14 +79,16 @@ const getTranslationsCache = () => {
 	const addTranslation = async (
 		redis: RedisClient,
 		key: string,
-		translation: Translation,
+		translation: Translation
 	) => {
 		const translations = await getTranslations(redis)
-		translations[key] = translations[key] || new TranslationRecord(undefined)
+		if (!translations[key]) {
+			throw new Error(`Key "${key}" not found`)
+		}
 		findAndReplaceOrPush(
 			translations[key].translations,
 			({ lang }) => translation.lang === lang,
-			() => translation,
+			() => translation
 		)
 		await redis.set(TRANSLATIONS_KEY, JSON.stringify(translations))
 	}
@@ -94,18 +96,18 @@ const getTranslationsCache = () => {
 	const importTranslations = async (
 		redis: RedisClient,
 		lang: string,
-		extracted: Extracted,
+		extracted: Extracted
 	) => {
 		const translations = await getTranslations(redis)
 		for (const [key, { defaultMessage, description }] of Object.entries(
-			extracted,
+			extracted
 		)) {
 			const translation = translations[key] || new TranslationRecord(null)
 			translation.description = description || ''
 			findAndReplaceOrPush(
 				translation.translations,
-				(translation) => translation.lang === lang,
-				(current) => {
+				translation => translation.lang === lang,
+				current => {
 					if (current) {
 						current.message = defaultMessage
 						return current
@@ -114,8 +116,9 @@ const getTranslationsCache = () => {
 						lang,
 						message: defaultMessage,
 					}
-				},
+				}
 			)
+			translations[key] = translation
 		}
 		for (const key of Object.keys(translations)) {
 			if (key in extracted) {

@@ -61,3 +61,7 @@ export type WsFromServer =
 	| {
 			type: 'IMPORT'
 	  }
+	| {
+			type: 'init'
+			locks: Record<string, string>
+	  }

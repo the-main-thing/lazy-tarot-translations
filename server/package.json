@@ -1,17 +1,20 @@
 {
-  "name": "server",
-  "module": "index.ts",
-  "type": "module",
-  "dependencies": {
-    "cookie": "^0.6.0",
-    "ioredis": "^5.4.1",
-    "isbot": "^4.1.0",
-    "sanitize-html": "^2.13.0",
-    "socket.io": "^4.7.5"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@types/sanitize-html": "^2.11.0",
-    "typescript": "^5.5.3"
-  }
+	"name": "server",
+	"module": "index.ts",
+	"type": "module",
+	"scripts": {
+		"start": "bun run index.ts"
+	},
+	"dependencies": {
+		"cookie": "^0.6.0",
+		"ioredis": "^5.4.1",
+		"isbot": "^4.1.0",
+		"sanitize-html": "^2.13.0",
+		"socket.io": "^4.7.5"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@types/sanitize-html": "^2.11.0",
+		"typescript": "^5.5.3"
+	}
 }

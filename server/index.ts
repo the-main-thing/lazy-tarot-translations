@@ -37,11 +37,12 @@ const server = Bun.serve<{ wsSession: string }>({
 		const url = new URL(req.url)
 		const cookieHeaderValue = req.headers.get('cookie')
 		const cookies = cookie.parse(cookieHeaderValue || '')
-		if (cookies[sessionCookieKey] !== hashedPassword) {
+		const authenticated = cookies[sessionCookieKey] === hashedPassword
+		if (!authenticated && url.pathname !== '/api/import') {
 			if (req.method === 'GET' && url.pathname === '/') {
 				return new Response(Bun.file(path.join('.', 'index.html')))
 			}
-			if (req.method === 'POST' && url.pathname === '/') {
+			if (req.method === 'POST' && url.pathname === '/login') {
 				const formData = await req.formData()
 				if (envMap.PASSWORD === formData.get('password')) {
 					return new Response(
@@ -71,6 +72,10 @@ const server = Bun.serve<{ wsSession: string }>({
 			}
 		}
 
+		if (url.pathname === '/login' && req.method === 'GET') {
+			return Response.redirect('/', 302)
+		}
+
 		if (url.pathname === '/api/ws') {
 			const wsSession =
 				cookie.parse(req.headers.get('cookie') || '')?.['WS_SESSION'] ||
@@ -95,7 +100,12 @@ const server = Bun.serve<{ wsSession: string }>({
 		if (url.pathname === '/api/update' && req.method === 'POST') {
 			try {
 				const formData = await req.formData()
-				const message = sanitize(formData.get('message'))
+				const message = sanitize(formData.get('message')).trim()
+				if (!message) {
+					return new Response('Message cannot be empty', {
+						status: 400,
+					})
+				}
 				const lang = sanitize(formData.get('lang'))
 				const key = sanitize(formData.get('key'))
 				await addTranslation(redis, key, {
@@ -153,8 +163,12 @@ const server = Bun.serve<{ wsSession: string }>({
 					typeof error.message === 'string' &&
 					error.message
 				) {
+					console.error(
+						`Error importing translations: ${error.message}`
+					)
 					return new Response(error.message, { status: 500 })
 				}
+				console.error('Unknown error importing translations', error)
 				return new Response('Internal Server Error', { status: 500 })
 			}
 		}
@@ -175,7 +189,7 @@ const server = Bun.serve<{ wsSession: string }>({
 	},
 	websocket: {
 		open: ws => {
-			ws.subscribe('BROADCASTED')
+			ws.subscribe('BROADCAST')
 			const locks = {} as Record<string, string>
 			for (const [key, [id]] of lockState.locks.entries()) {
 				locks[key] = id
@@ -198,7 +212,7 @@ const server = Bun.serve<{ wsSession: string }>({
 								key: message.key,
 								id: message.id,
 							})
-							server.publish('BROADCASTED', response)
+							server.publish('BROADCAST', response)
 							return
 						}
 						ws.send(
@@ -215,7 +229,7 @@ const server = Bun.serve<{ wsSession: string }>({
 								type: 'release',
 								key: message.key,
 							})
-							server.publish('BROADCASTED', response)
+							server.publish('BROADCAST', response)
 							return
 						}
 						ws.send(
@@ -230,7 +244,7 @@ const server = Bun.serve<{ wsSession: string }>({
 						const released = lockState.releaseById(message.id)
 						for (const key of released) {
 							server.publish(
-								'BROADCASTED',
+								'BROADCAST',
 								JSON.stringify({ type: 'release', key })
 							)
 						}
@@ -281,7 +295,7 @@ function getLocksState() {
 			if (expiresAt <= Date.now()) {
 				keysToRelease.push(key)
 				server.publish(
-					'BROADCASTED',
+					'BROADCAST',
 					JSON.stringify({ type: 'release', key })
 				)
 			}

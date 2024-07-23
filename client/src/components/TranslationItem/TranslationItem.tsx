@@ -40,9 +40,6 @@ const useTranslation = (props: Props) => {
 			}
 			const response = await fetch('/api/update', {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/x-www-form-urlencoded',
-				},
 				body: input.formData,
 			})
 			if (response.status >= 400) {
@@ -92,105 +89,98 @@ export const TranslationItem = memo((props: Props) => {
 		useTranslation(props)
 
 	return (
-		<div>
-			<Accordion
-				value={String(collapsed)}
-				type="single"
-				collapsible
-				className="w-full"
-			>
-				<AccordionItem value={String(!collapsed)}>
-					<AccordionTrigger>{props.lang}</AccordionTrigger>
-					<AccordionContent>
-						<form
-							onSubmit={event => {
-								event.preventDefault()
-								if (props.disabled || isPending) {
-									return
-								}
-								const formData = new FormData(
-									event.currentTarget
-								)
-								mutate({
-									disabled: props.disabled,
-									formData,
-								})
-							}}
-							onFocus={() => {
-								if (props.disabled) {
-									return
-								}
-								props.onLock({
-									key: props.translationKey,
-									id: props.id,
-								})
-							}}
-							onBlur={() => {
-								if (props.disabled) {
-									return
-								}
-								props.onRelease({
-									key: props.translationKey,
-									id: props.id,
-								})
-							}}
-						>
-							<input
-								type="hidden"
-								name="key"
-								value={props.translationKey}
-							/>
-							<input
-								type="hidden"
-								name="lang"
-								value={props.lang}
-							/>
-							<HoverCard>
-								<HoverCardTrigger asChild>
+		<Accordion
+			value={collapsed ? '' : 'opened'}
+			onValueChange={() => {
+				setCollapsed(current => !current)
+			}}
+			type="single"
+			collapsible
+			className="w-full"
+		>
+			<AccordionItem value="opened">
+				<AccordionTrigger>{props.lang}</AccordionTrigger>
+				<AccordionContent className="p-2">
+					<form
+						className="flex flex-col gap-2"
+						onSubmit={event => {
+							event.preventDefault()
+							if (props.disabled || isPending) {
+								return
+							}
+							const formData = new FormData(event.currentTarget)
+							mutate({
+								disabled: props.disabled,
+								formData,
+							})
+						}}
+						onFocus={() => {
+							props.onLock({
+								key: props.translationKey,
+								id: props.id,
+							})
+						}}
+						onBlur={() => {
+							props.onRelease({
+								key: props.translationKey,
+								id: props.id,
+							})
+						}}
+					>
+						<input
+							type="hidden"
+							name="key"
+							value={props.translationKey}
+						/>
+						<input type="hidden" name="lang" value={props.lang} />
+						<HoverCard>
+							<HoverCardTrigger asChild>
+								<div>
 									<Label
 										htmlFor={`${props.translationKey}-${props.lang}`}
 									>
-										<div>Перевод для </div>
+										<div className="pb-2">Перевод для </div>
 									</Label>
-								</HoverCardTrigger>
-								<HoverCardContent className="w-80">
-									<p>
-										Текст внутри скобок: "{`{{ value }}`}"
-										&mdash; плейсхолдер для переменной. Его
-										нельзя менять и надо копировать вместе
-										со скобками.
-									</p>
-									<p>
-										Символы вроде "\n" или "{'&nbsp;'}"
-										&mdash; знаки препинания, либо переносы
-										строк, либо пробелы. Их следует
-										оставлять, если есть смысл.
-									</p>
-								</HoverCardContent>
-							</HoverCard>
-							<Textarea
-								id={`${props.translationKey}-${props.lang}`}
-								disabled={props.disabled}
-								name="message"
-								placeholder="Введи перевод"
-								value={message}
-								onChange={event => {
-									if (props.disabled || isPending) {
-										return
-									}
-									setMessage(event.target.value)
-								}}
-							/>
-							<Button
-								type="submit"
-								disabled={props.disabled || isPending}
-							>
-								Сохранить
-							</Button>
-						</form>
-					</AccordionContent>
-				</AccordionItem>
-			</Accordion>
-		</div>
+
+									<Textarea
+										id={`${props.translationKey}-${props.lang}`}
+										disabled={props.disabled}
+										name="message"
+										placeholder="Введи перевод"
+										value={message}
+										onChange={event => {
+											if (props.disabled || isPending) {
+												return
+											}
+											setMessage(event.target.value)
+										}}
+									/>
+								</div>
+							</HoverCardTrigger>
+							<HoverCardContent className="w-80">
+								<p className="text-pretty text-justify">
+									Текст внутри скобок: "{`{{ value }}`}"
+									&mdash; это плейсхолдер для переменной. Его
+									нельзя менять и надо копировать вместе со
+									скобками.
+								</p>
+								<p className="text-pretty text-justify">
+									Символы вроде "\n" или "{'&nbsp;'}" &mdash;
+									это знаки препинания, либо переносы строк,
+									либо пробелы. Их следует оставлять, если
+									есть смысл.
+								</p>
+							</HoverCardContent>
+						</HoverCard>
+						<Button
+							type="submit"
+							disabled={props.disabled || isPending}
+						>
+							Сохранить
+						</Button>
+					</form>
+				</AccordionContent>
+			</AccordionItem>
+		</Accordion>
 	)
 })

@@ -1,9 +1,19 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 import type { Translations, TranslationRecord } from './types'
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardFooter,
+	CardHeader,
+	CardTitle,
+} from '@/components/ui/card'
 import { TranslationItem } from './components/TranslationItem'
 import { listenWs, sendWs } from './utils'
+import { Label } from './components/ui/label'
+import { Switch } from './components/ui/switch'
 
 const id = crypto.randomUUID()
 
@@ -20,39 +30,10 @@ function App() {
 		},
 	})
 	const queryClient = useQueryClient()
-	const { mutate, isPending } = useMutation({
-		mutationFn: async (formData: FormData) => {
-			const response = await fetch('/api/update', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(formData),
-			})
-			if (response.status >= 400) {
-				const message = await response.text()
-				throw new Error(message)
-			}
-
-			return null
-		},
-		onSettled: async () => {
-			queryClient.invalidateQueries({ queryKey: ['translations'] })
-		},
-	})
 	const [ws, setWs] = useState<null | WebSocket>(null)
 	const [lockedKeys, setLockedKeys] = useState<{
 		[key: string]: string
 	}>({})
-
-	const [updates, setUpdates] = useState<null | {
-		[key: string]: {
-			lang: string
-			message: string
-		}
-	}>(null)
-
-	useEffect(() => {
-		setUpdates(null)
-	}, [translations])
 
 	useEffect(() => {
 		if (!ws) {
@@ -66,7 +47,7 @@ function App() {
 				sendWs(ws, {
 					type: 'lock',
 					key,
-					id
+					id,
 				})
 			}
 		}, 1000 * 60 * 3)
@@ -101,6 +82,9 @@ function App() {
 						return current
 					})
 					return
+				case 'init':
+					setLockedKeys(message.locks)
+					return
 				case 'UPDATE':
 				case 'IMPORT':
 					queryClient.invalidateQueries({
@@ -130,6 +114,7 @@ function App() {
 
 	const lock = useCallback(
 		({ key, id }: { key: string; id: string }) => {
+			console.log('Locking', key, id)
 			if (!ws) {
 				return
 			}
@@ -172,24 +157,52 @@ function App() {
 		[ws]
 	)
 
+	const [filterTranslated, setFilterTranslated] = useState(false)
+	const filteredTranslations = useMemo(() => {
+		if (!filterTranslated || !translations) {
+			return translations
+		}
+		return translations.filter(([_, { translations: records }]) => {
+			return records.some(({ message }) => !message)
+		})
+	}, [filterTranslated, translations])
+
 	const content = error ? (
 		<>
 			<h1>Ошибка при загрузке переводов. Скажи Павлушке об этом</h1>
 		</>
 	) : (
-		<div>
-			<ul>
-				{!translations ? (
-					<p>Загрузка переводов...</p>
-				) : (
-					translations.map(
+		<div className="w-2/3">
+			{!filteredTranslations ? (
+				<p>Загрузка переводов...</p>
+			) : (
+				<div className="flex flex-col gap-8">
+					<Label>
+						<div className="mb-2">Скрыть переведённые</div>
+						<Switch
+							checked={filterTranslated}
+							onCheckedChange={() =>
+								setFilterTranslated(current => !current)
+							}
+						/>
+					</Label>
+					{filteredTranslations.map(
 						([key, { description, translations: messages }]) => {
+							const locked =
+								!!lockedKeys[key] && lockedKeys[key] !== id
 							return (
-								<li key={key}>
-									<div>
-										<p>{description}</p>
-									</div>
-									<div>
+								<Card
+									key={key}
+									className={
+										locked
+											? 'outline outline-2 outline-offset-2 outline-cyan-500'
+											: ''
+									}
+								>
+									<CardHeader>
+										<CardTitle>{description}</CardTitle>
+									</CardHeader>
+									<CardContent>
 										<ul>
 											{messages.map(record => {
 												return (
@@ -203,30 +216,25 @@ function App() {
 															}
 															onLock={lock}
 															onRelease={release}
-															disabled={
-																lockedKeys[
-																	key
-																] === id
-															}
+															disabled={locked}
 															ws={ws}
 														/>
 													</li>
 												)
 											})}
 										</ul>
-									</div>
-								</li>
+									</CardContent>
+								</Card>
 							)
 						}
-					)
-				)}
-			</ul>
+					)}
+				</div>
+			)}
 		</div>
 	)
 
 	return (
-		<div className="App">
-			<h1>Vite + React</h1>
+		<div className="flex w-screen h-screen justify-center p-16">
 			{content}
 		</div>
 	)
