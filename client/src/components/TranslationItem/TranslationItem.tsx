@@ -11,7 +11,7 @@ import {
 	AccordionItem,
 	AccordionTrigger,
 } from '../ui/accordion'
-import { listenWs } from '@/utils'
+import { getAPIEndpointURL, listenWs } from '@/utils'
 
 interface Props {
 	lang: string
@@ -38,7 +38,7 @@ const useTranslation = (props: Props) => {
 					'This mutation sould not be called when the key is locked.'
 				)
 			}
-			const response = await fetch('/api/update', {
+			const response = await fetch(getAPIEndpointURL('/api/update'), {
 				method: 'POST',
 				body: input.formData,
 			})

@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Translations, TranslationRecord } from './types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TranslationItem } from './components/TranslationItem'
-import { listenWs, sendWs } from './utils'
+import { listenWs, sendWs, getAPIEndpointURL, getWsEndpointURL } from './utils'
 import { Label } from './components/ui/label'
 import { Switch } from './components/ui/switch'
 
@@ -14,7 +14,7 @@ function App() {
 	const { data: translations, error } = useQuery({
 		queryKey: ['translations'],
 		queryFn: async () => {
-			const response = await fetch('/api/get')
+			const response = await fetch(getAPIEndpointURL('/api/get'))
 			const translations =
 				(await response.json()) as Promise<Translations>
 			return Object.entries(translations) as Array<
@@ -49,7 +49,7 @@ function App() {
 	}, [lockedKeys, ws])
 
 	useEffect(() => {
-		const ws = new WebSocket('ws://localhost:3000/api/ws')
+		const ws = new WebSocket(getWsEndpointURL('/api/ws'))
 		setWs(ws)
 
 		const stopListening = listenWs(ws, message => {

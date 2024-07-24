@@ -6,6 +6,14 @@ export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs))
 }
 
+export const getAPIEndpointURL = (endpoint: string) => {
+	return new URL(endpoint, `https://${__API_ORIGIN__}`).toString()
+}
+
+export const getWsEndpointURL = (endpoint: string) => {
+	return new URL(endpoint, `wss://${__API_ORIGIN__}`).toString()
+}
+
 export const sendWs = (ws: WebSocket, message: WsToServer) => {
 	ws.send(JSON.stringify(message))
 	return
@@ -26,6 +34,6 @@ export const listenWs = (
 	ws.addEventListener('message', onWsMessage)
 
 	return () => {
-        ws.removeEventListener('message', onWsMessage)
-    }
+		ws.removeEventListener('message', onWsMessage)
+	}
 }
