@@ -11,6 +11,20 @@ import { Switch } from './components/ui/switch'
 const id = crypto.randomUUID()
 
 function App() {
+	const { data: loggedIn, isLoading } = useQuery({
+		queryKey: ['loggedIn'],
+		queryFn: async () => {
+			const response = await fetch(getAPIEndpointURL('/api/status'))
+			return response.status === 200
+		},
+	})
+
+	useEffect(() => {
+		if (!isLoading && !loggedIn) {
+			window.location.href = getAPIEndpointURL('/')
+		}
+	}, [isLoading, loggedIn])
+
 	const { data: translations, error } = useQuery({
 		queryKey: ['translations'],
 		queryFn: async () => {
@@ -21,6 +35,7 @@ function App() {
 				[string, TranslationRecord]
 			>
 		},
+		enabled: !isLoading && loggedIn,
 	})
 	const queryClient = useQueryClient()
 	const [ws, setWs] = useState<null | WebSocket>(null)

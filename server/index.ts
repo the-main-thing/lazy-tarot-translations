@@ -42,6 +42,11 @@ const server = Bun.serve<{ wsSession: string }>({
 		const cookieHeaderValue = req.headers.get('cookie')
 		const cookies = cookie.parse(cookieHeaderValue || '')
 		const authenticated = cookies[sessionCookieKey] === hashedPassword
+		if (req.method === 'GET' && url.pathname === '/api/status') {
+			return authenticated
+				? new Response('ok', { status: 200 })
+				: new Response('Unauthorized', { status: 401 })
+		}
 		if (!authenticated && url.pathname !== '/api/import') {
 			if (req.method === 'GET' && url.pathname === '/') {
 				return new Response(Bun.file(path.join('.', 'index.html')))
