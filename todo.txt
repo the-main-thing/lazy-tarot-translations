@@ -1,3 +1,0 @@
-deploy
-import script
-styling

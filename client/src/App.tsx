@@ -1,15 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import type { Translations, TranslationRecord } from './types'
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TranslationItem } from './components/TranslationItem'
 import { listenWs, sendWs } from './utils'
 import { Label } from './components/ui/label'
@@ -90,6 +83,7 @@ function App() {
 					queryClient.invalidateQueries({
 						queryKey: ['translations'],
 					})
+					setLockedKeys(message.locks)
 					return
 				case 'error':
 					console.error('Server error', message.message)

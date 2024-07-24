@@ -57,9 +57,11 @@ export type WsFromServer =
 			key: string
 			lang: string
 			message: string
+			locks: Record<string, string>
 	  }
 	| {
 			type: 'IMPORT'
+			locks: Record<string, string>
 	  }
 	| {
 			type: 'init'

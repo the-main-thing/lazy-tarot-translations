@@ -1,5 +1,6 @@
 import path from 'path'
 
+import { isbot } from 'isbot'
 import cookie from 'cookie'
 import sanitizeHTML from 'sanitize-html'
 import {
@@ -11,7 +12,7 @@ import {
 
 import { envMap } from './env'
 
-const clientDist = path.join(process.cwd(), '..', 'client', 'dist')
+const clientDist = path.join(process.cwd(), 'client', 'dist')
 
 const cookieAge = 60 * 60 * 24 * 365
 const TEN_MINUTES_MS = 1000 * 60 * 10
@@ -34,6 +35,9 @@ const lockState = getLocksState()
 const server = Bun.serve<{ wsSession: string }>({
 	development: process.env.NODE_ENV === 'development',
 	fetch: async (req, server): Promise<Response> => {
+		if (isbot(req.headers.get('user-agent'))) {
+			return new Response('Not found', { status: 404 })
+		}
 		const url = new URL(req.url)
 		const cookieHeaderValue = req.headers.get('cookie')
 		const cookies = cookie.parse(cookieHeaderValue || '')
@@ -112,6 +116,8 @@ const server = Bun.serve<{ wsSession: string }>({
 					lang,
 					message,
 				})
+				const locks = await updateLocks()
+
 				server.publish(
 					'BROADCAST',
 					JSON.stringify({
@@ -119,10 +125,24 @@ const server = Bun.serve<{ wsSession: string }>({
 						key,
 						lang,
 						message,
+						locks,
 					})
 				)
 				return new Response('Translation updated', { status: 200 })
 			} catch (error) {
+				try {
+					const locks = await updateLocks()
+
+					server.publish(
+						'BROADCAST',
+						JSON.stringify({
+							type: 'init',
+							locks,
+						})
+					)
+				} catch {
+					// do nothing
+				}
 				if (
 					error &&
 					typeof error === 'object' &&
@@ -148,14 +168,28 @@ const server = Bun.serve<{ wsSession: string }>({
 			try {
 				const extracted = await req.json()
 				await importTranslations(redis, 'en', extracted)
+				const locks = await updateLocks()
 				server.publish(
 					'BROADCAST',
 					JSON.stringify({
 						type: 'IMPORT',
+						locks,
 					})
 				)
 				return new Response('Translations imported', { status: 200 })
 			} catch (error) {
+				try {
+					const locks = await updateLocks()
+					server.publish(
+						'BROADCAST',
+						JSON.stringify({
+							type: 'IMPORT',
+							locks,
+						})
+					)
+				} catch {
+					// do nothing
+				}
 				if (
 					error &&
 					typeof error === 'object' &&
@@ -352,4 +386,17 @@ function getLocksState() {
 		lock,
 		release,
 	}
+}
+
+async function updateLocks() {
+	const translations = await getTranslations(redis)
+	const locks: Record<string, string> = {}
+	for (const [key, [id]] of lockState.locks.entries()) {
+		if (key in translations) {
+			locks[key] = id
+			continue
+		}
+		lockState.release(key, id)
+	}
+	return locks
 }
