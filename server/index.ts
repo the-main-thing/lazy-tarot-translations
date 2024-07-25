@@ -32,10 +32,19 @@ const sessionCookieKey =
 
 const lockState = getLocksState()
 
+const isImport = (request: Request) => {
+	const url = new URL(request.url)
+	return (
+		url.pathname === '/api/import' &&
+		request.method === 'POST' &&
+		request.headers.get('x-api-key') === envMap.IMPORT_TOKEN
+	)
+}
+
 const server = Bun.serve<{ wsSession: string }>({
 	development: process.env.NODE_ENV === 'development',
 	fetch: async (req, server): Promise<Response> => {
-		if (isbot(req.headers.get('user-agent'))) {
+		if (isbot(req.headers.get('user-agent')) && !isImport(req)) {
 			return new Response('Not found', { status: 404 })
 		}
 		const url = new URL(req.url)
