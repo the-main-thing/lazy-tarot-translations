@@ -7,11 +7,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const getAPIEndpointURL = (endpoint: string) => {
-	return new URL(endpoint, `https://${__API_ORIGIN__}`).toString()
+	return new URL(endpoint, window.location.origin).toString()
 }
 
 export const getWsEndpointURL = (endpoint: string) => {
-	return new URL(endpoint, `wss://${__API_ORIGIN__}`).toString()
+	return new URL(endpoint, window.location.origin)
+		.toString()
+		.replace('http://', 'ws://')
+		.replace('https://', 'wss://')
 }
 
 export const sendWs = (ws: WebSocket, message: WsToServer) => {
