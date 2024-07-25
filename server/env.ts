@@ -1,5 +1,4 @@
 export const envMap = {
-	DOMAIN: process.env.DOMAIN!,
 	PASSWORD: process.env.PASSWORD!,
 	REDIS_CONNECTION_STRING: process.env.REDIS_CONNECTION_STRING!,
 	IMPORT_TOKEN: process.env.IMPORT_TOKEN!,
