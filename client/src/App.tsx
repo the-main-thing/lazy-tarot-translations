@@ -2,7 +2,13 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import type { Translations, TranslationRecord } from './types'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+	Card,
+	CardContent,
+	CardHeader,
+	CardDescription,
+	CardTitle,
+} from '@/components/ui/card'
 import { TranslationItem } from './components/TranslationItem'
 import { listenWs, sendWs, getAPIEndpointURL, getWsEndpointURL } from './utils'
 import { Label } from './components/ui/label'
@@ -209,7 +215,14 @@ function App() {
 									}
 								>
 									<CardHeader>
-										<CardTitle>{description}</CardTitle>
+										<CardTitle>
+											{messages.find(
+												({ message }) => message
+											)?.message || null}
+										</CardTitle>
+										<CardDescription>
+											{description}
+										</CardDescription>
 									</CardHeader>
 									<CardContent>
 										<ul>
