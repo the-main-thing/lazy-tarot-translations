@@ -32,19 +32,22 @@ const sessionCookieKey =
 
 const lockState = getLocksState()
 
-const isImport = (request: Request) => {
-	const url = new URL(request.url)
-	return (
-		url.pathname === '/api/import' &&
-		request.method === 'POST' &&
-		request.headers.get('x-api-key') === envMap.IMPORT_TOKEN
-	)
-}
-
 const server = Bun.serve<{ wsSession: string }>({
 	development: process.env.NODE_ENV === 'development',
 	fetch: async (req, server): Promise<Response> => {
-		if (isbot(req.headers.get('user-agent')) && !isImport(req)) {
+		let response = await handleImport(req)
+		if (response) {
+			return response
+		}
+		response = await handleGetTranslations(req)
+		if (response) {
+			return response
+		}
+		response = await handleUpdate(req)
+		if (response) {
+			return response
+		}
+		if (isbot(req.headers.get('user-agent'))) {
 			return new Response('Not found', { status: 404 })
 		}
 		const url = new URL(req.url)
@@ -56,7 +59,7 @@ const server = Bun.serve<{ wsSession: string }>({
 				? new Response('ok', { status: 200 })
 				: new Response('Unauthorized', { status: 401 })
 		}
-		if (!authenticated && url.pathname !== '/api/import') {
+		if (!authenticated) {
 			if (req.method === 'GET' && url.pathname === '/') {
 				return new Response(Bun.file(path.join('.', 'index.html')))
 			}
@@ -94,7 +97,7 @@ const server = Bun.serve<{ wsSession: string }>({
 			return Response.redirect('/', 302)
 		}
 
-		if (url.pathname === '/api/ws') {
+		if (authenticated && url.pathname === '/api/ws') {
 			const wsSession =
 				cookie.parse(req.headers.get('cookie') || '')?.['WS_SESSION'] ||
 				crypto.randomUUID()
@@ -113,111 +116,6 @@ const server = Bun.serve<{ wsSession: string }>({
 				// Bun automatically returns a 101 Switching Protocols
 				// if the upgrade succeeds
 				return undefined as never
-			}
-		}
-		if (url.pathname === '/api/update' && req.method === 'POST') {
-			try {
-				const formData = await req.formData()
-				const message = sanitize(formData.get('message')).trim()
-				if (!message) {
-					return new Response('Message cannot be empty', {
-						status: 400,
-					})
-				}
-				const lang = sanitize(formData.get('lang'))
-				const key = sanitize(formData.get('key'))
-				await addTranslation(redis, key, {
-					lang,
-					message,
-				})
-				const locks = await updateLocks()
-
-				server.publish(
-					'BROADCAST',
-					JSON.stringify({
-						type: 'UPDATE',
-						key,
-						lang,
-						message,
-						locks,
-					})
-				)
-				return new Response('Translation updated', { status: 200 })
-			} catch (error) {
-				try {
-					const locks = await updateLocks()
-
-					server.publish(
-						'BROADCAST',
-						JSON.stringify({
-							type: 'init',
-							locks,
-						})
-					)
-				} catch {
-					// do nothing
-				}
-				if (
-					error &&
-					typeof error === 'object' &&
-					'message' in error &&
-					typeof error.message === 'string' &&
-					error.message
-				) {
-					return new Response(error.message, { status: 500 })
-				}
-				return new Response('Internal Server Error', { status: 500 })
-			}
-		}
-
-		if (url.pathname === '/api/get' && req.method === 'GET') {
-			const translations = await getTranslations(redis)
-			return Response.json(translations)
-		}
-
-		if (url.pathname === '/api/import' && req.method === 'POST') {
-			if (req.headers.get('x-api-key') !== envMap.IMPORT_TOKEN) {
-				return new Response('Invalid API key', { status: 401 })
-			}
-			try {
-				const extracted = await req.json()
-				await importTranslations(redis, 'en', extracted)
-				const locks = await updateLocks()
-				server.publish(
-					'BROADCAST',
-					JSON.stringify({
-						type: 'IMPORT',
-						locks,
-					})
-				)
-				return new Response('Translations imported', { status: 200 })
-			} catch (error) {
-				try {
-					const locks = await updateLocks()
-					server.publish(
-						'BROADCAST',
-						JSON.stringify({
-							type: 'IMPORT',
-							locks,
-						})
-					)
-				} catch {
-					// do nothing
-				}
-				if (
-					error &&
-					typeof error === 'object' &&
-					'message' in error &&
-					typeof error.message === 'string' &&
-					error.message
-				) {
-					console.error(
-						`Error importing translations: ${error.message}`
-					)
-					return new Response(error.message, { status: 500 })
-				}
-				console.error('Unknown error importing translations', error)
-				return new Response('Internal Server Error', { status: 500 })
 			}
 		}
 
@@ -413,4 +311,137 @@ async function updateLocks() {
 		lockState.release(key, id)
 	}
 	return locks
+}
+
+async function handleImport(request: Request) {
+	const url = new URL(request.url)
+	if (
+		url.pathname === '/api/import' &&
+		request.method === 'POST' &&
+		request.headers.get('x-api-key') === envMap.IMPORT_TOKEN
+	) {
+		if (request.headers.get('x-api-key') !== envMap.IMPORT_TOKEN) {
+			return new Response('Invalid API key', { status: 401 })
+		}
+		try {
+			const extracted = await request.json()
+			await importTranslations(redis, 'en', extracted)
+			const locks = await updateLocks()
+			server.publish(
+				'BROADCAST',
+				JSON.stringify({
+					type: 'IMPORT',
+					locks,
+				})
+			)
+			return new Response('Translations imported', { status: 200 })
+		} catch (error) {
+			try {
+				const locks = await updateLocks()
+				server.publish(
+					'BROADCAST',
+					JSON.stringify({
+						type: 'IMPORT',
+						locks,
+					})
+				)
+			} catch {
+				// do nothing
+			}
+			if (
+				error &&
+				typeof error === 'object' &&
+				'message' in error &&
+				typeof error.message === 'string' &&
+				error.message
+			) {
+				console.error(`Error importing translations: ${error.message}`)
+				return new Response(error.message, { status: 500 })
+			}
+			console.error('Unknown error importing translations', error)
+			return new Response('Internal Server Error', { status: 500 })
+		}
+	}
+}
+
+async function handleGetTranslations(request: Request) {
+	const url = new URL(request.url)
+	if (url.pathname === '/api/get' && request.method === 'GET') {
+		const cookieHeaderValue = request.headers.get('cookie')
+		const cookies = cookie.parse(cookieHeaderValue || '')
+		const authenticated =
+			cookies[sessionCookieKey] === hashedPassword ||
+			request.headers.get('x-api-key') !== envMap.IMPORT_TOKEN
+		if (!authenticated) {
+			return new Response('Unauthorized', { status: 401 })
+		}
+		const translations = await getTranslations(redis)
+		return Response.json(translations)
+	}
+}
+
+async function handleUpdate(request: Request) {
+	const url = new URL(request.url)
+	const cookieHeaderValue = request.headers.get('cookie')
+	const cookies = cookie.parse(cookieHeaderValue || '')
+	const authenticated =
+		cookies[sessionCookieKey] === hashedPassword ||
+		request.headers.get('x-api-key') !== envMap.IMPORT_TOKEN
+	if (!authenticated) {
+		return new Response('Unauthorized', { status: 401 })
+	}
+	if (url.pathname === '/api/update' && request.method === 'POST') {
+		try {
+			const formData = await request.formData()
+			const message = sanitize(formData.get('message')).trim()
+			if (!message) {
+				return new Response('Message cannot be empty', {
+					status: 400,
+				})
+			}
+			const lang = sanitize(formData.get('lang'))
+			const key = sanitize(formData.get('key'))
+			await addTranslation(redis, key, {
+				lang,
+				message,
+			})
+			const locks = await updateLocks()
+
+			server.publish(
+				'BROADCAST',
+				JSON.stringify({
+					type: 'UPDATE',
+					key,
+					lang,
+					message,
+					locks,
+				})
+			)
+			return new Response('Translation updated', { status: 200 })
+		} catch (error) {
+			try {
+				const locks = await updateLocks()
+
+				server.publish(
+					'BROADCAST',
+					JSON.stringify({
+						type: 'init',
+						locks,
+					})
+				)
+			} catch {
+				// do nothing
+			}
+			if (
+				error &&
+				typeof error === 'object' &&
+				'message' in error &&
+				typeof error.message === 'string' &&
+				error.message
+			) {
+				return new Response(error.message, { status: 500 })
+			}
+			return new Response('Internal Server Error', { status: 500 })
+		}
+	}
 }
