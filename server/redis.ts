@@ -127,6 +127,7 @@ const getTranslationsCache = () => {
 			translations[key] = undefined as never
 		}
 		await redis.set(TRANSLATIONS_KEY, JSON.stringify(translations))
+		return translations
 	}
 
 	return {

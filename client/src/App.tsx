@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
-import type { Translations, TranslationRecord } from './types'
+import type { Translations, TranslationRecord, WsFromServer } from './types'
 import {
 	Card,
 	CardContent,
@@ -43,7 +43,47 @@ function App() {
 		},
 		enabled: !isLoading && loggedIn,
 	})
+
 	const queryClient = useQueryClient()
+	const onUpdate = useCallback(
+		(message: Extract<WsFromServer, { type: 'UPDATE' }>) => {
+			const translations = queryClient.getQueryData<
+				Array<[string, TranslationRecord]>
+			>(['translations'])
+			if (!translations) {
+				queryClient.invalidateQueries({ queryKey: ['translations'] })
+				return
+			}
+			const updated = Array(translations.length)
+			for (let i = 0; i < translations.length; i++) {
+				if (translations[i]![0] !== message.key) {
+					updated[i] = translations[i]!
+				}
+				const record = translations[i]![1]!
+				const messages = Array(record.translations.length)
+				for (let j = 0; j < record.translations.length; j++) {
+					if (record.translations[j]!.lang !== message.lang) {
+						messages[j] = record.translations[j]!
+					} else {
+						messages[j] = {
+							...record.translations[j],
+							message: message.message,
+						}
+					}
+				}
+			}
+			queryClient.setQueryData(['translations'], updated)
+		},
+		[queryClient]
+	)
+
+	const onImport = useCallback(
+		(message: Extract<WsFromServer, { type: 'IMPORT' }>) => {
+			queryClient.setQueryData(['translations'], message.translations)
+		},
+		[queryClient]
+	)
+
 	const [ws, setWs] = useState<null | WebSocket>(null)
 	const [lockedKeys, setLockedKeys] = useState<{
 		[key: string]: string
@@ -100,10 +140,10 @@ function App() {
 					setLockedKeys(message.locks)
 					return
 				case 'UPDATE':
+					onUpdate(message)
+					return
 				case 'IMPORT':
-					queryClient.invalidateQueries({
-						queryKey: ['translations'],
-					})
+					onImport(message)
 					setLockedKeys(message.locks)
 					return
 				case 'error':
@@ -125,7 +165,7 @@ function App() {
 			window.removeEventListener('beforeunload', beforeUnload)
 			ws.close()
 		}
-	}, [queryClient])
+	}, [queryClient, onUpdate, onImport])
 
 	const lock = useCallback(
 		({ key, id }: { key: string; id: string }) => {

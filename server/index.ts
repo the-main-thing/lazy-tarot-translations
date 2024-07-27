@@ -325,16 +325,21 @@ async function handleImport(request: Request) {
 		}
 		try {
 			const extracted = await request.json()
-			await importTranslations(redis, 'en', extracted)
+			const translations = await importTranslations(
+				redis,
+				'en',
+				extracted
+			)
 			const locks = await updateLocks()
 			server.publish(
 				'BROADCAST',
 				JSON.stringify({
 					type: 'IMPORT',
 					locks,
+					translations,
 				})
 			)
-			return new Response('Translations imported', { status: 200 })
+			return Response.json(translations)
 		} catch (error) {
 			try {
 				const locks = await updateLocks()
@@ -369,9 +374,7 @@ async function handleGetTranslations(request: Request) {
 	if (url.pathname === '/api/get' && request.method === 'GET') {
 		const cookieHeaderValue = request.headers.get('cookie')
 		const cookies = cookie.parse(cookieHeaderValue || '')
-		const authenticated =
-			cookies[sessionCookieKey] === hashedPassword ||
-			request.headers.get('x-api-key') !== envMap.IMPORT_TOKEN
+		const authenticated = cookies[sessionCookieKey] === hashedPassword
 		if (!authenticated) {
 			return new Response('Unauthorized', { status: 401 })
 		}
