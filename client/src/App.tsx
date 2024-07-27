@@ -79,7 +79,10 @@ function App() {
 
 	const onImport = useCallback(
 		(message: Extract<WsFromServer, { type: 'IMPORT' }>) => {
-			queryClient.setQueryData(['translations'], message.translations)
+			queryClient.setQueryData<typeof translations>(
+				['translations'],
+				Object.entries(message.translations)
+			)
 		},
 		[queryClient]
 	)
